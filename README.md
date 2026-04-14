@@ -161,6 +161,13 @@ You can add more tests in `tests/test_recommender.py`.
 
 The app was run with `python -m src.main` from the project root. Five profiles were tested — three standard and two adversarial edge cases.
 
+![High-Energy Pop](High-Energy-Pop.png)
+![Chill Lofi Study](Chill-Lofi.png)
+![Deep Intense Rock](Intense%20Rock.png)
+![Adversarial - Loud Sad](Loud%20Sad.png)
+![Adversarial - Unknown Genre](Unknown%20Genre.png)
+
+
 ```
 Loaded 18 songs from data/songs.csv
 
