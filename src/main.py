@@ -1,32 +1,42 @@
 """
 Command line runner for the Music Recommender Simulation.
 
-This file helps you quickly run and test your recommender.
-
-You will implement the functions in recommender.py:
-- load_songs
-- score_song
-- recommend_songs
+Run from the project root with:
+    python -m src.main
 """
 
-from recommender import load_songs, recommend_songs
+import os
+from src.recommender import load_songs, recommend_songs
 
 
 def main() -> None:
-    songs = load_songs("data/songs.csv") 
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    csv_path = os.path.join(base_dir, "data", "songs.csv")
+    songs = load_songs(csv_path)
 
-    # Starter example profile
-    user_prefs = {"genre": "pop", "mood": "happy", "energy": 0.8}
+    user_prefs = {
+        "genre": "pop",
+        "mood": "happy",
+        "target_energy": 0.8,
+        "target_valence": 0.8,
+        "target_acousticness": 0.2,
+    }
+
+    print(
+        f"\nUser profile: genre={user_prefs['genre']} | "
+        f"mood={user_prefs['mood']} | "
+        f"energy={user_prefs['target_energy']}"
+    )
+    print("\nTop recommendations:")
+    print("-" * 52)
 
     recommendations = recommend_songs(user_prefs, songs, k=5)
 
-    print("\nTop recommendations:\n")
-    for rec in recommendations:
-        # You decide the structure of each returned item.
-        # A common pattern is: (song, score, explanation)
-        song, score, explanation = rec
-        print(f"{song['title']} - Score: {score:.2f}")
-        print(f"Because: {explanation}")
+    for rank, (song, score, reasons) in enumerate(recommendations, start=1):
+        print(f"{rank}. {song['title']}  -  {song['artist']}")
+        print(f"   Score: {score:.2f}/6.00  |  {song['genre']} / {song['mood']}")
+        for reason in reasons:
+            print(f"     > {reason}")
         print()
 
 
