@@ -11,23 +11,114 @@ Your goal is to:
 - Evaluate what your system gets right and wrong
 - Reflect on how this mirrors real world AI recommenders
 
-Replace this paragraph with your own summary of what your version does.
+This simulator builds a content-based music recommender. It scores each song against a user's taste profile using genre, mood, energy, valence, and acousticness — then ranks all songs and returns the top matches. It is designed to be transparent: every recommendation comes with an explanation of which features drove the score.
 
 ---
 
 ## How The System Works
 
-Explain your design in plain language.
+Real-world recommenders like Spotify and YouTube combine two main strategies. **Collaborative filtering** looks across millions of users — if people with similar listening histories also liked a song, it gets recommended to you, even if it sounds nothing like what you normally play. **Content-based filtering** takes the opposite approach: it analyzes the actual attributes of songs you liked (energy, mood, tempo) and finds songs with similar characteristics. Spotify's "Discover Weekly" uses both: collaborative filtering finds candidates, then audio features re-rank them. Our simulation focuses on the content-based side — it is simpler to reason about, easier to explain, and does not require any other users' data to work.
 
-Some prompts to answer:
+This version prioritizes the user's **genre** and **mood** as the strongest signals (because they define the broad "world" you want to be in), then uses **proximity scoring** on numerical features like energy and valence to reward songs that are *close* to what you want — not just generically high or low.
 
-- What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
+### Song features used
 
-You can include a simple diagram or bullet list if helpful.
+| Feature | Type | Role |
+|---|---|---|
+| `genre` | categorical | Broadest category filter — highest weight |
+| `mood` | categorical | Emotional intent — second highest weight |
+| `energy` | float 0–1 | How intense/driving the track feels |
+| `valence` | float 0–1 | Musical positivity / happiness |
+| `acousticness` | float 0–1 | Organic vs electronic texture |
+
+### UserProfile stores
+
+- `genre` — the genre they want most (e.g. `"lofi"`)
+- `mood` — the emotional state they are targeting (e.g. `"chill"`)
+- `target_energy` — a 0–1 float for how intense they want the music (e.g. `0.40`)
+- `target_valence` — a 0–1 float for emotional positivity (e.g. `0.60`)
+- `target_acousticness` — a 0–1 float for organic vs electronic sound (e.g. `0.75`)
+- `likes_acoustic` — boolean shorthand for acoustic preference
+
+**Example profile — "Late-Night Study Session":**
+
+```python
+user_prefs = {
+    "genre": "lofi",
+    "mood": "chill",
+    "target_energy": 0.40,
+    "target_valence": 0.60,
+    "target_acousticness": 0.75,
+    "likes_acoustic": True
+}
+```
+
+*Critique:* This profile **can** differentiate "intense rock" from "chill lofi" — Storm Runner (rock/intense, energy 0.91) scores 0 on both categorical matches and loses ~0.76 on energy proximity, while Library Rain (lofi/chill, energy 0.35) gains the full +2.0 + +1.0 + high proximity. The risk is narrowness: because lofi appears three times in the catalog, the top results will cluster around those three songs, which is a textbook filter-bubble effect.
+
+---
+
+### Algorithm Recipe (finalized)
+
+**Maximum possible score: 6.0**
+
+| Signal | Rule | Points |
+|---|---|---|
+| Genre match | `song.genre == user.genre` | **+2.0** |
+| Mood match | `song.mood == user.mood` | **+1.0** |
+| Energy proximity | `(1 - \|song.energy − user.target_energy\|) × 1.5` | **0 – 1.5** |
+| Valence proximity | `(1 - \|song.valence − user.target_valence\|) × 1.0` | **0 – 1.0** |
+| Acousticness proximity | `(1 - \|song.acousticness − user.target_acousticness\|) × 0.5` | **0 – 0.5** |
+
+**Proximity formula explained:** `1 - |a - b|` gives 1.0 when song value exactly matches the target and tapers linearly to 0.0 at maximum distance. This rewards closeness — not just "higher is better."
+
+**Weight reasoning:**
+- Genre outweighs mood: a jazz fan rarely wants metal even if the mood label matches
+- Energy outweighs valence: energy is the most immediately felt difference between two songs
+- Acousticness is a tiebreaker, not a primary driver
+
+---
+
+### Data Flow
+
+```mermaid
+flowchart TD
+    A["User Profile\n(genre, mood, target_energy,\ntarget_valence, target_acousticness)"]
+    B["Load songs.csv\n18 songs in catalog"]
+    C{"For each song\nin catalog"}
+    D["Scoring Rule\n(judge this one song)"]
+    E["+2.0 if genre matches"]
+    F["+1.0 if mood matches"]
+    G["energy proximity × 1.5"]
+    H["valence proximity × 1.0"]
+    I["acousticness proximity × 0.5"]
+    J["Song total score\n(0.0 – 6.0)"]
+    K["All 18 songs scored"]
+    L["Sort by score descending\n(Ranking Rule)"]
+    M["Return top K songs\nwith explanations"]
+
+    A --> C
+    B --> C
+    C --> D
+    D --> E & F & G & H & I
+    E & F & G & H & I --> J
+    J --> C
+    C -->|done| K
+    K --> L
+    L --> M
+```
+
+---
+
+### Potential Biases
+
+- **Genre dominance:** At 2.0 points, a genre match alone can outweigh perfect numerical alignment. A great ambient track scored against a "lofi" profile will cap at 4.0 even with perfect energy/valence/acousticness.
+- **Filter bubble:** The scoring never rewards novelty or diversity — it always picks the closest match, so similar songs cluster at the top.
+- **Catalog skew:** Lofi and pop appear most in the dataset. A "rock" or "classical" user will get fewer strong matches simply because the catalog is thin for their genre.
+- **Ordinal vs categorical mood:** "Chill" and "relaxed" feel similar, but the algorithm treats them as completely different strings — a relaxed jazz track scores 0 on mood for a "chill" user.
+
+### How recommendations are chosen
+
+All songs in the catalog are scored, then sorted highest-to-lowest. The top `k` songs (default 5) are returned. This is the **Ranking Rule** — applying the Scoring Rule to every song and picking the winners.
 
 ---
 
